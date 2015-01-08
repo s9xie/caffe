@@ -5,6 +5,10 @@
 #include "caffe/proto/caffe.pb.h"
 #include "caffe/vision_layers.hpp"
 
+#ifdef WITH_PYTHON_LAYER
+#include "caffe/python_layer.hpp"
+#endif
+
 namespace caffe {
 
 // Get convolution layer according to engine.
@@ -152,6 +156,29 @@ Layer<Dtype>* GetTanHLayer(const LayerParameter& param) {
 }
 
 REGISTER_LAYER_CREATOR(TANH, GetTanHLayer);
+
+#ifdef WITH_PYTHON_LAYER
+template <typename Dtype>
+Layer<Dtype>* GetPythonLayer(const LayerParameter& param) {
+  Py_Initialize();
+  try {
+    bp::object module = bp::import(param.python_param().module().c_str());
+    bp::object layer = module.attr(param.python_param().layer().c_str())(param);
+    // This is a hack to get around the fact that layer factory wants a raw
+    // pointer: we INCREF the Python object, release ownership of the C++
+    // object, giving it to Net, and later DECREF the Python object in the C++
+    // object's destructor. This means that Python layers must not be
+    // constructed outside of Nets and this function.
+    Py_INCREF(layer.ptr());
+    return bp::extract<std::auto_ptr<PythonLayer<Dtype> > >(layer)().release();
+  } catch (bp::error_already_set) {
+    PyErr_Print();
+    throw;
+  }
+}
+
+REGISTER_LAYER_CREATOR(PYTHON, GetPythonLayer);
+#endif
 
 // Layers that use their constructor as their default creator should be
 // registered in their corresponding cpp files. Do not registere them here.
