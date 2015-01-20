@@ -68,6 +68,14 @@ class DataTransformer {
   void Transform(const cv::Mat& cv_img, Blob<Dtype>* transformed_blob);
 #endif
 
+#ifndef OSX
+  void ContextTransform(const cv::Mat& cv_img, Blob<Dtype>* transformed_blob, std::pair<int,int> hw_off);
+#endif
+
+#ifndef OSX
+  std::pair<int,int> LocTransform(const cv::Mat& cv_img, Blob<Dtype>* transformed_blob);
+#endif
+
   /**
    * @brief Applies the same transformation defined in the data layer's
    * transform_param block to all the num images in a input_blob.
