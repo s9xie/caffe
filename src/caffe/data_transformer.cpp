@@ -417,31 +417,31 @@ void DataTransformer<Dtype>::ContextTransform(const cv::Mat& cv_img,
 
   const int crop_size = param_.crop_size();
   const Dtype scale = param_.scale();
-  const bool do_mirror = param_.mirror() && Rand(2);
-  const bool has_mean_file = param_.has_mean_file();
-  const bool has_mean_values = mean_values_.size() > 0;
+  //const bool do_mirror = param_.mirror() && Rand(2);
+  //const bool has_mean_file = param_.has_mean_file();
+  //const bool has_mean_values = mean_values_.size() > 0;
 
   CHECK_GT(img_channels, 0);
   CHECK_GE(img_height, crop_size);
   CHECK_GE(img_width, crop_size);
 
-  Dtype* mean = NULL;
-  if (has_mean_file) {
-    CHECK_EQ(img_channels, data_mean_.channels());
-    CHECK_EQ(img_height, data_mean_.height());
-    CHECK_EQ(img_width, data_mean_.width());
-    mean = data_mean_.mutable_cpu_data();
-  }
-  if (has_mean_values) {
-    CHECK(mean_values_.size() == 1 || mean_values_.size() == img_channels) <<
-     "Specify either 1 mean_value or as many as channels: " << img_channels;
-    if (img_channels > 1 && mean_values_.size() == 1) {
-      // Replicate the mean_value for simplicity
-      for (int c = 1; c < img_channels; ++c) {
-        mean_values_.push_back(mean_values_[0]);
-      }
-    }
-  }
+  //Dtype* mean = NULL;
+  //if (has_mean_file) {
+  //  CHECK_EQ(img_channels, data_mean_.channels());
+  //  CHECK_EQ(img_height, data_mean_.height());
+  //  CHECK_EQ(img_width, data_mean_.width());
+  //  mean = data_mean_.mutable_cpu_data();
+  // }
+  //if (has_mean_values) {
+  //  CHECK(mean_values_.size() == 1 || mean_values_.size() == img_channels) <<
+  //   "Specify either 1 mean_value or as many as channels: " << img_channels;
+  //  if (img_channels > 1 && mean_values_.size() == 1) {
+  //    // Replicate the mean_value for simplicity
+  //    for (int c = 1; c < img_channels; ++c) {
+  //      mean_values_.push_back(mean_values_[0]);
+  //    }
+  //  }
+  // }
 
   int h_off = 0;
   int w_off = 0;
@@ -458,8 +458,8 @@ void DataTransformer<Dtype>::ContextTransform(const cv::Mat& cv_img,
     //  w_off = (img_width - crop_size) / 2;
     //}
 
-    h_off = hw_off.first();
-    w_off = hw_off.second();
+    h_off = hw_off.first;
+    w_off = hw_off.second;
 
     cv::Rect roi(w_off, h_off, crop_size, crop_size);
     cv_cropped_img = cv_img(roi);
@@ -477,25 +477,25 @@ void DataTransformer<Dtype>::ContextTransform(const cv::Mat& cv_img,
     int img_index = 0;
     for (int w = 0; w < width; ++w) {
       for (int c = 0; c < img_channels; ++c) {
-        if (do_mirror) {
-          top_index = (c * height + h) * width + (width - 1 - w);
-        } else {
-          top_index = (c * height + h) * width + w;
-        }
+        //if (do_mirror) {
+        //  top_index = (c * height + h) * width + (width - 1 - w);
+        //} else {
+        top_index = (c * height + h) * width + w;
+        //}
         // int top_index = (c * height + h) * width + w;
         Dtype pixel = static_cast<Dtype>(ptr[img_index++]);
-        if (has_mean_file) {
-          int mean_index = (c * img_height + h_off + h) * img_width + w_off + w;
-          transformed_data[top_index] =
-            (pixel - mean[mean_index]) * scale;
-        } else {
-          if (has_mean_values) {
-            transformed_data[top_index] =
-              (pixel - mean_values_[c]) * scale;
-          } else {
-            transformed_data[top_index] = pixel * scale;
-          }
-        }
+        //if (has_mean_file) {
+        //  int mean_index = (c * img_height + h_off + h) * img_width + w_off + w;
+        //  transformed_data[top_index] =
+        //    (pixel - mean[mean_index]) * scale;
+        //} else {
+        //  if (has_mean_values) {
+        //    transformed_data[top_index] =
+        //      (pixel - mean_values_[c]) * scale;
+        //  } else {
+        transformed_data[top_index] = pixel * scale;
+        //}
+        //}
       }
     }
   }

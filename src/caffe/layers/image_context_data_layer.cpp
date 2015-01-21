@@ -1,3 +1,8 @@
+#include <opencv2/core/core.hpp>
+#include <opencv2/highgui/highgui.hpp>
+#include <opencv2/highgui/highgui_c.h>
+#include <opencv2/imgproc/imgproc.hpp>
+
 #include <fstream>  // NOLINT(readability/streams)
 #include <iostream>  // NOLINT(readability/streams)
 #include <string>
@@ -108,18 +113,18 @@ void ImageContextDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bo
     this->prefetch_data_.Reshape(batch_size, channels, crop_size, crop_size);
     this->transformed_data_.Reshape(1, channels, crop_size, crop_size);
 
-    top[2]->Reshape(batch_size, cls_number, crop_size, crop_size);
-    this->prefetch_context_.Reshape(batch_size, cls_number, crop_size, crop_size);
-    this->transformed_context_.Reshape(1, cls_number, crop_size, crop_size);
+    top[2]->Reshape(batch_size, num_cls, crop_size, crop_size);
+    this->prefetch_context_.Reshape(batch_size, num_cls, crop_size, crop_size);
+    this->transformed_context_.Reshape(1, num_cls, crop_size, crop_size);
 
   } else {
     top[0]->Reshape(batch_size, channels, height, width);
     this->prefetch_data_.Reshape(batch_size, channels, height, width);
     this->transformed_data_.Reshape(1, channels, height, width);
 
-    top[2]->Reshape(batch_size, cls_number, height, width);
-    this->prefetch_context_.Reshape(batch_size, cls_number, height, width);
-    this->transformed_context_.Reshape(1, cls_number, height, width);
+    top[2]->Reshape(batch_size, num_cls, height, width);
+    this->prefetch_context_.Reshape(batch_size, num_cls, height, width);
+    this->transformed_context_.Reshape(1, num_cls, height, width);
   }
   LOG(INFO) << "output data size: " << top[0]->num() << ","
       << top[0]->channels() << "," << top[0]->height() << ","
@@ -176,7 +181,7 @@ void ImageContextDataLayer<Dtype>::InternalThreadEntry() {
     const int upsampling_factor = 2; //hard coded for now
     const int num_cls = 21;
 
-    const int channels = cv_img.channels();
+    //const int channels = cv_img.channels();
     const int height = cv_img.rows;
     const int width = cv_img.cols;
     
@@ -211,7 +216,13 @@ void ImageContextDataLayer<Dtype>::InternalThreadEntry() {
     this->transformed_data_.set_cpu_data(top_data + offset);
     this->transformed_context_.set_cpu_data(top_context + offset_gt);
 
+    std::pair<int, int> hw_off = this->data_transformer_.LocTransform(cv_img, &(this->transformed_data_));
+    int h_off = hw_off.first;
+    int w_off = hw_off.second;
+
     //We want to know the "centeral" label, so we do a simple voting here for robustness.
+    int crop_size = this->layer_param_.transform_param().crop_size();
+    
     int max_label = 0;
     int max = 0;
 
@@ -233,14 +244,8 @@ void ImageContextDataLayer<Dtype>::InternalThreadEntry() {
     top_label[item_id] = max_label;
     // go to the next iter
 
-
-    pari<int, int> hw_off = this->data_transformer_.LocTransform(cv_img, &(this->transformed_data_));
-    int h_off = hw_off.first();
-    int w_off = hw_off.second();
-
     //blackout the (4) centeral pixels
-    int crop_size = this->layer_param_.transform_param().crop_size();
-    cv::Mat drop_out_mask = Mat:ones(new_height, new_width);
+    cv::Mat drop_out_mask = cv::Mat::ones(new_height, new_width, CV_8U);
     drop_out_mask.at<int>(h_off + crop_size/2, w_off + crop_size/2) = 0;
     drop_out_mask.at<int>(h_off + crop_size/2 - 1, w_off + crop_size/2) = 0;
     drop_out_mask.at<int>(h_off + crop_size/2, w_off + crop_size/2 - 1) = 0;
@@ -249,12 +254,13 @@ void ImageContextDataLayer<Dtype>::InternalThreadEntry() {
 
     //one-hot encoding of the gt map
     cv::Mat temp;
-    vector<Mat> cls_channels;
+    vector<cv::Mat> cls_channels;
     for(int c = 0; c < num_cls; c++) {
       temp = (cv_gt == c);
       cls_channels.push_back(temp/255);
     }
-    cv::Mat encoded_gt = cv::merge(cls_channels, encoded_gt);
+    cv::Mat encoded_gt;
+    cv::merge(cls_channels, encoded_gt);
 
 
     this->data_transformer_.ContextTransform(encoded_gt, &(this->transformed_context_), hw_off);

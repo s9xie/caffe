@@ -21,7 +21,6 @@ ImageDataLayer<Dtype>::~ImageDataLayer<Dtype>() {
 template <typename Dtype>
 void ImageDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top) {
-  //const int upsampling_rate = this->layer_param_.image_data_param().upsampling_rate();
   const int new_height = this->layer_param_.image_data_param().new_height();
   const int new_width  = this->layer_param_.image_data_param().new_width();
   const bool is_color  = this->layer_param_.image_data_param().is_color();
@@ -34,13 +33,12 @@ void ImageDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
   const string& source = this->layer_param_.image_data_param().source();
   LOG(INFO) << "Opening file " << source;
   std::ifstream infile(source.c_str());
-  string img_filename;
-  string gt_filename;
-  while (infile >> img_filename >> gt_filename) {
-    lines_.push_back(std::make_pair(img_filename, gt_filename));
+  string filename;
+  int label;
+  while (infile >> filename >> label) {
+    lines_.push_back(std::make_pair(filename, label));
   }
 
-  // shuffle the lines, so the pair of img/gt won't change
   if (this->layer_param_.image_data_param().shuffle()) {
     // randomly shuffle data
     LOG(INFO) << "Shuffling data";
@@ -48,7 +46,6 @@ void ImageDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
     prefetch_rng_.reset(new Caffe::RNG(prefetch_rng_seed));
     ShuffleImages();
   }
-
   LOG(INFO) << "A total of " << lines_.size() << " images.";
 
   lines_id_ = 0;
@@ -60,63 +57,21 @@ void ImageDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
     CHECK_GT(lines_.size(), skip) << "Not enough points to skip";
     lines_id_ = skip;
   }
-
-  //TO-DO: make this a parameter
-  int upsampling_factor = 2; //hard coded for now
-  int num_cls = 21;
-
   // Read an image, and use it to initialize the top blob.
   cv::Mat cv_img = ReadImageToCVMat(root_folder + lines_[lines_id_].first,
-                                    0, 0, is_color);
-  cv::Mat cv_gt = ReadImageToCVMat(root_folder + lines_[lines_id_].second,
-                                    0, 0, 0);
-
-  //Debug
-  std::cout << "cv_img" << " " << cv_img << std::endl << std::endl;
-  std::cout << "cv_gt"  << " " << cv_gt  << std::endl << std::endl;
-
+                                    new_height, new_width, is_color);
   const int channels = cv_img.channels();
   const int height = cv_img.rows;
   const int width = cv_img.cols;
-  
-  const int gt_channels = cv_gt.channels();
-  const int gt_height = cv_gt.rows;
-  const int gt_width = cv_gt.cols;
-
-  CHECK((height == gt_height) && (width == gt_width)) << "GT image size should be equal to true image size";
-  CHECK(gt_channels == 1) << "GT image channel number should be equal to one";
-
-  
-  new_width = width * upsampling_factor;
-  new_height = height * upsampling_factor;
-  //opencv resize can take src == dst without preallocation
-
-  if (new_height > 0 && new_width > 0) {
-    cv::resize(cv_img, cv_img, cv::Size(new_width, new_height));
-    cv::resize(cv_img, cv_img, cv::Size(new_width, new_height));
-  }
-
   // image
-  //top[0] data
-  //top[1] label
-  //top[2] context
   const int crop_size = this->layer_param_.transform_param().crop_size();
   const int batch_size = this->layer_param_.image_data_param().batch_size();
   if (crop_size > 0) {
     top[0]->Reshape(batch_size, channels, crop_size, crop_size);
     this->prefetch_data_.Reshape(batch_size, channels, crop_size, crop_size);
     this->transformed_data_.Reshape(1, channels, crop_size, crop_size);
-
-    top[2]->Reshape(batch_size, cls_number, crop_size, crop_size);
-    this->prefetch_data_.Reshape(batch_size, cls_number, crop_size, crop_size);
-    this->transformed_data_.Reshape(1, cls_number, crop_size, crop_size);
-
   } else {
     top[0]->Reshape(batch_size, channels, height, width);
-    this->prefetch_data_.Reshape(batch_size, channels, height, width);
-    this->transformed_data_.Reshape(1, channels, height, width);
-
-    top[2]->Reshape(batch_size, channels, height, width);
     this->prefetch_data_.Reshape(batch_size, channels, height, width);
     this->transformed_data_.Reshape(1, channels, height, width);
   }
@@ -161,34 +116,7 @@ void ImageDataLayer<Dtype>::InternalThreadEntry() {
     timer.Start();
     CHECK_GT(lines_size, lines_id_);
     cv::Mat cv_img = ReadImageToCVMat(root_folder + lines_[lines_id_].first,
-                                    0, 0, is_color);
-    cv::Mat cv_gt = ReadImageToCVMat(root_folder + lines_[lines_id_].second,
-                                    0, 0, 0);
-
-      //TO-DO: make this a parameter
-    const int upsampling_factor = 2; //hard coded for now
-    const int num_cls = 21;
-
-    const int channels = cv_img.channels();
-    const int height = cv_img.rows;
-    const int width = cv_img.cols;
-    
-    const int gt_channels = cv_gt.channels();
-    const int gt_height = cv_gt.rows;
-    const int gt_width = cv_gt.cols;
-  
-    CHECK((height == gt_height) && (width == gt_width)) << "GT image size should be equal to true image size";
-    CHECK(gt_channels == 1) << "GT image channel number should be equal to one";
-  
-    
-    new_width = width * upsampling_factor;
-    new_height = height * upsampling_factor;
-
-    if (new_height > 0 && new_width > 0) {
-      cv::resize(cv_img, cv_img, cv::Size(new_width, new_height));
-      cv::resize(cv_img, cv_img, cv::Size(new_width, new_height));
-    }
-
+                                    new_height, new_width, is_color);
     if (!cv_img.data) {
       continue;
     }
@@ -198,7 +126,6 @@ void ImageDataLayer<Dtype>::InternalThreadEntry() {
     int offset = this->prefetch_data_.offset(item_id);
     this->transformed_data_.set_cpu_data(top_data + offset);
     this->data_transformer_.Transform(cv_img, &(this->transformed_data_));
-    
     trans_time += timer.MicroSeconds();
 
     top_label[item_id] = lines_[lines_id_].second;
@@ -222,3 +149,4 @@ void ImageDataLayer<Dtype>::InternalThreadEntry() {
 INSTANTIATE_CLASS(ImageDataLayer);
 REGISTER_LAYER_CLASS(IMAGE_DATA, ImageDataLayer);
 }  // namespace caffe
+

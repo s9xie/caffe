@@ -280,7 +280,7 @@ class ImageContextDataLayer : public BasePrefetchingDataLayer<Dtype> {
   virtual void ShuffleImages();
   virtual void InternalThreadEntry();
 
-  vector<std::pair<std::string, int> > lines_;
+  vector<std::pair<std::string, std::string> > lines_;
   int lines_id_;
 
 };
