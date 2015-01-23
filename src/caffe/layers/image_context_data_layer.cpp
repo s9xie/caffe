@@ -78,8 +78,9 @@ void ImageContextDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bo
                                     0, 0, 0);
 
   //Debug
-  std::cout << "cv_img" << " " << cv_img << std::endl << std::endl;
-  std::cout << "cv_gt"  << " " << cv_gt  << std::endl << std::endl;
+  // std::cout << "cv_img" << " " << cv_img << std::endl << std::endl;
+  //std::cout << lines_[lines_id_].second << std::endl;
+  //std::cout << "cv_gt"  << " " << cv_gt  << std::endl << std::endl;
 
   const int channels = cv_img.channels();
   const int height = cv_img.rows;
@@ -196,10 +197,12 @@ void ImageContextDataLayer<Dtype>::InternalThreadEntry() {
     new_width = width * upsampling_factor;
     new_height = height * upsampling_factor;
 
+    //std::cout << "cv_gt: " << cv_gt << std::endl << std::endl;
     if (new_height > 0 && new_width > 0) {
       cv::resize(cv_img, cv_img, cv::Size(new_width, new_height));
       cv::resize(cv_gt, cv_gt, cv::Size(new_width, new_height), 0, 0, cv::INTER_NEAREST);
     }
+    //std::cout << "cv_gt_resize: " << cv_gt << std::endl << std::endl;
 
     if (!cv_img.data || !cv_gt.data) {
       continue;
@@ -211,7 +214,7 @@ void ImageContextDataLayer<Dtype>::InternalThreadEntry() {
     // Apply transformations (mirror, crop...) to the image
     int offset = this->prefetch_data_.offset(item_id);
     int offset_gt = this->prefetch_context_.offset(item_id);
-    CHECK(offset == offset_gt) << "fetching should be synchronized";
+    //CHECK(offset == offset_gt) << "fetching should be synchronized";
 
     this->transformed_data_.set_cpu_data(top_data + offset);
     this->transformed_context_.set_cpu_data(top_context + offset_gt);
@@ -219,6 +222,7 @@ void ImageContextDataLayer<Dtype>::InternalThreadEntry() {
     std::pair<int, int> hw_off = this->data_transformer_.LocTransform(cv_img, &(this->transformed_data_));
     int h_off = hw_off.first;
     int w_off = hw_off.second;
+    //LOG(INFO) << "h_off, w_off: " << h_off << " " << w_off;
 
     //We want to know the "centeral" label, so we do a simple voting here for robustness.
     int crop_size = this->layer_param_.transform_param().crop_size();
@@ -226,10 +230,10 @@ void ImageContextDataLayer<Dtype>::InternalThreadEntry() {
     int max_label = 0;
     int max = 0;
 
-    int p1 = cv_gt.at<int>(h_off + crop_size/2, w_off + crop_size/2);
-    int p2 = cv_gt.at<int>(h_off + crop_size/2 - 1, w_off + crop_size/2);
-    int p3 = cv_gt.at<int>(h_off + crop_size/2, w_off + crop_size/2 - 1);
-    int p4 = cv_gt.at<int>(h_off + crop_size/2 - 1, w_off + crop_size/2 - 1);
+    int p1 = (int)cv_gt.at<uchar>(h_off + crop_size/2    , w_off + crop_size/2    );
+    int p2 = (int)cv_gt.at<uchar>(h_off + crop_size/2 - 1, w_off + crop_size/2    );
+    int p3 = (int)cv_gt.at<uchar>(h_off + crop_size/2    , w_off + crop_size/2 - 1);
+    int p4 = (int)cv_gt.at<uchar>(h_off + crop_size/2 - 1, w_off + crop_size/2 - 1);
 
     int np1 = (int)(p1 == p2) + (int)(p1 == p3) + (int)(p1 == p4);
     int np2 = (int)(p2 == p1) + (int)(p2 == p3) + (int)(p2 == p4);
@@ -239,6 +243,10 @@ void ImageContextDataLayer<Dtype>::InternalThreadEntry() {
     if (np1 >= np2) { max = np1; max_label = p1;} else { max = np2; max_label = p2;}
     if (np3 >= max) { max = np3; max_label = p3;}
     if (np4 >= max) max_label = p4;
+    
+    //LOG(INFO) << "p1p2p3p4: " << p1 << " " << p2 << " " << p3 << " " << p4;
+    //LOG(INFO) << "np1p2p3p4: " << np1 << " " <<np2 << " " <<np3 << " " <<np4;
+    //LOG(INFO) << "max np1p2p3p4: " << max_label << " " << max;
 
     //top_label[item_id] = lines_[lines_id_].second;
     top_label[item_id] = max_label;
@@ -251,17 +259,30 @@ void ImageContextDataLayer<Dtype>::InternalThreadEntry() {
     drop_out_mask.at<int>(h_off + crop_size/2, w_off + crop_size/2 - 1) = 0;
     drop_out_mask.at<int>(h_off + crop_size/2 - 1, w_off + crop_size/2 - 1) = 0;
     cv_gt = cv_gt.mul(drop_out_mask);
+     
+    //cv::FileStorage fs("cv_gt.yml", cv::FileStorage::WRITE);
+    //fs << "cv_gt" << cv_gt;
+    //fs.release();
 
+    //cv::FileStorage fs2("drop_out_mask.yml", cv::FileStorage::WRITE);
+    //fs2 << "drop_out_mask" << drop_out_mask;
+    //fs2.release();
     //one-hot encoding of the gt map
     cv::Mat temp;
     vector<cv::Mat> cls_channels;
     for(int c = 0; c < num_cls; c++) {
       temp = (cv_gt == c);
+      //std::cout << "******************************************************************************************************" << std::endl;
+      //std::cout << temp << std::endl;
+      //std::cout << "******************************************************************************************************" << std::endl;
       cls_channels.push_back(temp/255);
     }
     cv::Mat encoded_gt;
     cv::merge(cls_channels, encoded_gt);
 
+    //cv::FileStorage fs3("encoded_gt.yml", cv::FileStorage::WRITE);
+    //fs3 << "encoded_gt" << encoded_gt;
+    //fs3.release();
 
     this->data_transformer_.ContextTransform(encoded_gt, &(this->transformed_context_), hw_off);
 

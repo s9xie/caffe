@@ -44,6 +44,9 @@ void SoftmaxWithLossLayer<Dtype>::Forward_cpu(
   softmax_layer_->Forward(softmax_bottom_vec_, softmax_top_vec_);
   const Dtype* prob_data = prob_.cpu_data();
   const Dtype* label = bottom[1]->cpu_data();
+  //LOG(INFO) << "label: " << label[0] <<" " << label[1] <<" " << label[2] <<" " << label[3];
+  //LOG(INFO) << "prob: " << prob_data[0] << " " << prob_data[1] <<" " << prob_data[2] << " "<< prob_data[3];
+
   int num = prob_.num();
   int dim = prob_.count() / num;
   int spatial_dim = prob_.height() * prob_.width();
