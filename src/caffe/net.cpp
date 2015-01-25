@@ -585,9 +585,14 @@ void Net<Dtype>::ForwardDebugInfo(const int layer_id) {
     const Blob<Dtype>& blob = *top_vecs_[layer_id][top_id];
     const string& blob_name = blob_names_[top_id_vecs_[layer_id][top_id]];
     const Dtype data_abs_val_mean = blob.asum_data() / blob.count();
+    const Dtype data_count = blob.count();
+    const Dtype data_num = blob.num();
+    const Dtype data_height = blob.height();
+    const Dtype data_width = blob.width();
+    const Dtype data_channels = blob.channels();
     LOG(INFO) << "    [Forward] "
        << "Layer " << layer_names_[layer_id] << ", top blob " << blob_name
-       << " data: " << data_abs_val_mean;
+       << " data: " << data_abs_val_mean << ", count " << data_count << " num " << data_num << " height " << data_height << " width " << data_width << " channels " << data_channels;
   }
 }
 
@@ -758,6 +763,7 @@ void Net<Dtype>::Update() {
   // First, accumulate the diffs of any shared parameters into their owner's
   // diff. (Assumes that the learning rate, weight decay, etc. have already been
   // accounted for in the current diff.)
+
   for (int i = 0; i < params_.size(); ++i) {
     if (param_owners_[i] < 0) { continue; }
     if (debug_info_) { UpdateDebugInfo(i); }

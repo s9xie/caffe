@@ -8,6 +8,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <cstdlib>
 
 #include "caffe/data_layers.hpp"
 #include "caffe/layer.hpp"
@@ -270,8 +271,27 @@ void ImageContextDataLayer<Dtype>::InternalThreadEntry() {
     //one-hot encoding of the gt map
     cv::Mat temp;
     vector<cv::Mat> cls_channels;
+    
+    std::stringstream ss;
+    ss << lines_id_;
+
+    //LOG(INFO) << "start writing...";	
+    //std::string ff = "cv_gt" + ss.str() + ".yml";
+    //cv::FileStorage fs3(ff, cv::FileStorage::WRITE);
+    //fs3 << "cv_gt" << cv_gt;
+    //fs3.release();
+    //LOG(INFO) << "writing done";
+
     for(int c = 0; c < num_cls; c++) {
       temp = (cv_gt == c);
+    
+      //LOG(INFO) << "start writing...";	
+      //ss << c;
+      //ff = "encoded_gt_channels_" + ss.str() + ".yml";
+      //cv::FileStorage fs4(ff, cv::FileStorage::WRITE);
+      //fs4 << "encoded_gt" << temp;
+      //fs4.release();
+      //LOG(INFO) << "writing done";
       //std::cout << "******************************************************************************************************" << std::endl;
       //std::cout << temp << std::endl;
       //std::cout << "******************************************************************************************************" << std::endl;
@@ -279,10 +299,8 @@ void ImageContextDataLayer<Dtype>::InternalThreadEntry() {
     }
     cv::Mat encoded_gt;
     cv::merge(cls_channels, encoded_gt);
-
-    //cv::FileStorage fs3("encoded_gt.yml", cv::FileStorage::WRITE);
-    //fs3 << "encoded_gt" << encoded_gt;
-    //fs3.release();
+    
+    
 
     this->data_transformer_.ContextTransform(encoded_gt, &(this->transformed_context_), hw_off);
 

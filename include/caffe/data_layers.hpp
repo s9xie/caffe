@@ -78,7 +78,9 @@ class BasePrefetchingDataLayer :
  protected:
   Blob<Dtype> prefetch_data_;
   Blob<Dtype> prefetch_label_;
+  Blob<Dtype> prefetch_context_;
   Blob<Dtype> transformed_data_;
+  Blob<Dtype> transformed_context_;
 };
 
 template <typename Dtype>
@@ -273,8 +275,8 @@ class ImageContextDataLayer : public BasePrefetchingDataLayer<Dtype> {
   virtual inline int ExactNumTopBlobs() const { return 3; }
 
  protected:
-  Blob<Dtype> prefetch_context_;
-  Blob<Dtype> transformed_context_;
+  //Blob<Dtype> prefetch_context_;
+  //Blob<Dtype> transformed_context_;
 
   shared_ptr<Caffe::RNG> prefetch_rng_;
   virtual void ShuffleImages();
